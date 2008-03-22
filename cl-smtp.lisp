@@ -60,6 +60,34 @@
   #+allegro (excl:string-to-base64-string str)
   #-allegro (cl-base64:string-to-base64-string str))
 
+(define-condition smtp-error (error)
+  ((host :initarg :host :reader host)))
+
+(define-condition smtp-protocol-error (smtp-error)
+  ((command :initarg :command :reader command)
+   (expected-response-code :initarg :expected-response-code :reader expected-response-code)
+   (response-code :initarg :response-code :reader response-code)
+   (response-message :initarg :response-message :reader response-message))
+  (:report (lambda (condition stream)
+             (print-unreadable-object (condition stream :type t)
+               (format stream "while talking to smtp server ~A, a command failed:~%command: ~S expected: ~A response: ~A"
+                       (host condition)
+                       (command condition)
+                       (expected-response-code condition)
+                       (response-message condition))))))
+
+(defun smtp-command (stream command expected-response-code &optional (condition-class 'smtp-protocol-error))
+  (when command
+    (write-to-smtp stream command))
+  (multiple-value-bind (code msgstr lines)
+      (read-from-smtp stream)
+    (when (/= code expected-response-code)
+      (error condition-class
+             :command command
+             :expected-response-code expected-response-code
+             :response-code code
+             :response-message msgstr))
+    lines))
 
 (defun send-email (host from to subject message 
 		   &key (port 25) cc bcc reply-to extra-headers
@@ -78,10 +106,10 @@
 			      256)
 	     :ssl ssl))
 
-
 (defun send-smtp (host from to subject message 
 		  &key (port 25) cc bcc reply-to extra-headers html-message 
-		  display-name authentication attachments buffer-size ssl)
+		  display-name authentication attachments buffer-size ssl
+                  (local-hostname (usocket::get-host-name)))
   (let* ((sock (usocket:socket-stream (usocket:socket-connect host port)))
 	 (boundary (make-random-boundary))
 	 (html-boundary (if (and attachments html-message)
@@ -90,7 +118,8 @@
     (unwind-protect
 	 (let ((stream (open-smtp-connection sock 
 					     :authentication authentication 
-					     :ssl ssl)))
+					     :ssl ssl
+                                             :local-hostname local-hostname)))
 	   (send-smtp-headers stream :from from :to to :cc cc :bcc bcc 
 			      :reply-to reply-to
 			      :display-name display-name 
@@ -143,121 +172,74 @@
 	     (dolist (attachment attachments)
 	       (send-attachment stream attachment boundary buffer-size))
 	     (send-end-marker stream boundary))
-	   (write-char #\. stream)
-	   (write-blank-line stream)
-	   (force-output stream)
-	   (multiple-value-bind (code msgstr)
-	       (read-from-smtp stream)
-	     (when (/= code 250)
-	       (error "Message send failed: ~A" msgstr)))
-	   (write-to-smtp stream "QUIT")
-	   (multiple-value-bind (code msgstr)
-	       (read-from-smtp stream)
-	     (when (/= code 221)
-	       (error "in QUIT command:: ~A" msgstr))))      
+           (smtp-command stream "." 250)
+           (smtp-command stream "QUIT" 221))      
       (close sock))))
 
-(defun open-smtp-connection (stream &key authentication ssl)
-  (multiple-value-bind (code msgstr)
-      (read-from-smtp stream)
-    (when (/= code 220)
-      (error "wrong response from smtp server: ~A" msgstr)))
-  (when ssl
-    (write-to-smtp stream (format nil "EHLO ~A" 
-				  (usocket::get-host-name)))
-    (multiple-value-bind (code msgstr lines)
-	(read-from-smtp stream)
-      (when (/= code 250)
-	(error "wrong response from smtp server: ~A" msgstr))
-      (when ssl
-	(cond
-	  ((find "STARTTLS" lines :test #'equal)
-	   (print-debug "this server supports TLS")
-	   (write-to-smtp stream "STARTTLS")
-	   (multiple-value-bind (code msgstr)
-	       (read-from-smtp stream)
-	     (when (/= code 220)
-	       (error "Unable to start TLS: ~A" msgstr))
-	     (setf stream 
-		   #+allegro (socket:make-ssl-client-stream stream)
-		   #-allegro
-		   (let ((s stream))
-		     (cl+ssl:make-ssl-client-stream 
-		      (cl+ssl:stream-fd stream)
-		      :close-callback (lambda () (close s)))))
-	     #-allegro
-	     (setf stream (flexi-streams:make-flexi-stream 
-			   stream
-			   :external-format 
-			   (flexi-streams:make-external-format 
-			    :latin-1 :eol-style :lf)))))
-	  (t
-	   (error "this server does not supports TLS"))))))
-  (cond
-    (authentication
-     (write-to-smtp stream (format nil "EHLO ~A" 
-				   (usocket::get-host-name)))
-     (multiple-value-bind (code msgstr)
-	 (read-from-smtp stream)
-       (when (/= code 250)
-	 (error "wrong response from smtp server: ~A" msgstr)))
-     (cond
-       ((eq (car authentication) :plain)
-	(write-to-smtp stream (format nil "AUTH PLAIN ~A" 
-				      (string-to-base64-string
-				       (format nil "~A~C~A~C~A" 
-					       (cadr authentication)
-					       #\null (cadr authentication) 
-					       #\null
-					       (caddr authentication)))))
-	(multiple-value-bind (code msgstr)
-	    (read-from-smtp stream)
-	  (when (/= code 235)
-	    (error "plain authentication failed: ~A" msgstr))))
-       ((eq (car authentication) :login)
-	(write-to-smtp stream "AUTH LOGIN")
-	(multiple-value-bind (code msgstr)
-	    (read-from-smtp stream)
-	  (when (/= code 334)
-	    (error "login authentication failed: ~A" msgstr)))
-	(write-to-smtp stream (string-to-base64-string (cadr authentication)))
-	(multiple-value-bind (code msgstr)
-	    (read-from-smtp stream)
-	  (when (/= code 334)
-	    (error "login authentication send username failed: ~A" msgstr)))
-	(write-to-smtp stream (string-to-base64-string (caddr authentication)))
-	(multiple-value-bind (code msgstr)
-	    (read-from-smtp stream)
-	  (when (/= code 235)
-	    (error "login authentication send password failed: ~A" msgstr))))
-       (t
-	(error "authentication ~A is not supported in cl-smtp" 
-	       (car authentication)))))
-    (t
-     (write-to-smtp stream (format nil "HELO ~A" (usocket::get-host-name)))
-     (multiple-value-bind (code msgstr)
-	 (read-from-smtp stream)
-       (when (/= code 250)
-	 (error "wrong response from smtp server: ~A" msgstr)))))
+(defun open-smtp-connection (stream &key authentication ssl local-hostname)
+  (smtp-command stream nil
+                220)
+  (if (or ssl authentication)
+      ;; When SSL or authentication requested, perform ESMTP EHLO
+      (let ((lines (smtp-command stream (format nil "EHLO ~A" local-hostname)
+                                 250)))
+        (when ssl
+          (unless (find "STARTTLS" lines :test #'equal)
+            (error "this server does not supports TLS"))
+          (print-debug "this server supports TLS")
+          (smtp-command stream "STARTTLS"
+                        220)
+          (setf stream 
+                #+allegro (socket:make-ssl-client-stream stream)
+                #-allegro
+                (let ((s stream))
+                  (cl+ssl:make-ssl-client-stream 
+                   (cl+ssl:stream-fd stream)
+                   :close-callback (lambda () (close s)))))
+          #-allegro
+          (setf stream (flexi-streams:make-flexi-stream 
+                        stream
+                        :external-format 
+                        (flexi-streams:make-external-format 
+                         :latin-1 :eol-style :lf))))
+        (when authentication
+          (ecase (car authentication)
+            (:plain
+             (smtp-command stream (format nil "AUTH PLAIN ~A" 
+                                          (string-to-base64-string
+                                           (format nil "~A~C~A~C~A" 
+                                                   (cadr authentication)
+                                                   #\null (cadr authentication) 
+                                                   #\null
+                                                   (caddr authentication))))
+                           235))
+            (:login
+             (smtp-command stream "AUTH LOGIN"
+                           334)
+             (smtp-command stream (string-to-base64-string (cadr authentication))
+                           334)
+             (smtp-command stream (string-to-base64-string (caddr authentication))
+                           235))
+            (t
+             (smtp-command stream (format nil "HELO ~A" local-hostname)
+                           250)))))
+      ;; No authentication or SSL requested, perform classic SMTP HELO
+      (smtp-command stream (format nil "HELO ~A" 
+                                   (usocket::get-host-name))
+                    250))
   stream)
   
 (defun send-smtp-headers (stream 
 			  &key from to  cc bcc reply-to 
 			  extra-headers display-name subject)
-  (write-to-smtp stream 
-		 (format nil "MAIL FROM:~@[~A ~]<~A>" display-name from))
-  (multiple-value-bind (code msgstr)
-      (read-from-smtp stream)
-    (when (/= code 250)
-      (error "in MAIL FROM command: ~A" msgstr)))
+  (smtp-command stream 
+                (format nil "MAIL FROM:~@[~A ~]<~A>" display-name from)
+                250)
   (compute-rcpt-command stream to)
   (compute-rcpt-command stream cc)
   (compute-rcpt-command stream bcc)
-  (write-to-smtp stream "DATA")
-  (multiple-value-bind (code msgstr)
-      (read-from-smtp stream)
-    (when (/= code 354)
-      (error "in DATA command: ~A" msgstr)))
+  (smtp-command stream "DATA"
+                354)
   (write-to-smtp stream (format nil "Date: ~A" (get-email-date-string)))
   (write-to-smtp stream (format nil "From: ~@[~A <~]~A~@[>~]" 
 				display-name from display-name))
@@ -287,11 +269,8 @@
 
 (defun compute-rcpt-command (stream adresses)
   (dolist (to adresses)
-    (write-to-smtp stream (format nil "RCPT TO:<~A>" to))
-    (multiple-value-bind (code msgstr)
-	(read-from-smtp stream)
-      (when (/= code 250)	
-	(error "in RCPT TO command: ~A" msgstr)))))
+    (smtp-command stream (format nil "RCPT TO:<~A>" to)
+                  250)))
 
 (defun write-to-smtp (stream command)
   (print-debug (format nil "to server: ~A" command)) 
@@ -312,7 +291,7 @@
     (print-debug (format nil "from server: ~A" line))
     (if (= (char-code (elt line 3)) (char-code #\-))
 	(read-from-smtp stream (append lines (list response)))
-	(values response-code line lines))))
+	(values response-code response lines))))
 
 (defun get-email-date-string ()
   (multiple-value-bind (sec min h d m y wd) (get-decoded-time)
