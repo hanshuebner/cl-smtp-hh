@@ -17,8 +17,15 @@
 ;;; Description: cl-smtp ASDF system definition file
 
 (defpackage :cl-smtp
-   	(:use :cl :asdf)
-	(:export :send-email))
+  (:use :cl :asdf)
+  (:export "SEND-EMAIL"
+           "WITH-SMTP-MAIL"
+
+           "SMTP-ERROR"
+           "SMTP-PROTOCOL-ERROR"
+           "NO-SUPPORTED-AUTHENTICATION-METHOD"
+           "RCPT-FAILED"
+           "IGNORE-RECIPIENT"))
 
 (in-package :cl-smtp)
 
@@ -29,12 +36,12 @@
       (print ,str)))
 
 (asdf:defsystem :cl-smtp
-       :version "20071113.1"
-	:perform (load-op :after (op webpage)
-			  (pushnew :cl-smtp cl:*features*))
-	:depends-on (:usocket #-allegro :cl-base64 
-			      #-allegro :flexi-streams
-			      #-allegro :cl+ssl)
-	:components ((:file "cl-smtp" :depends-on ("attachments"))
-                    (:file "attachments")
-                    (:file "mime-types")))
+  :version "20071113.1"
+  :perform (load-op :after (op webpage)
+                    (pushnew :cl-smtp cl:*features*))
+  :depends-on (:usocket #-allegro :cl-base64 
+                        #-allegro :flexi-streams
+                        #-allegro :cl+ssl)
+  :components ((:file "cl-smtp" :depends-on ("attachments"))
+               (:file "attachments")
+               (:file "mime-types")))
