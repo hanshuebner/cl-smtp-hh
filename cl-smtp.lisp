@@ -102,7 +102,7 @@
                            :response-message msgstr))))
     lines))
 
-(defun do-with-smtp-mail (host port from to thunk &key authentication ssl local-hostname)
+(defun do-with-smtp-mail (host from to thunk &key port authentication ssl local-hostname)
   (usocket:with-client-socket (socket stream host port)
     (let ((stream (smtp-handshake stream
                                   :authentication authentication 
@@ -112,7 +112,7 @@
       (funcall thunk stream)
       (finish-smtp-mail stream))))
 
-(defmacro with-smtp-mail ((stream-var host port from to &key authentication ssl local-hostname)
+(defmacro with-smtp-mail ((stream-var host from to &key ssl (port (if (eq :tls ssl) 465 25)) authentication local-hostname)
                           &body body)
   "Encapsulate a SMTP MAIl conversation.  A connection to the SMTP
    server on HOST and PORT is established and a MAIL command is
@@ -120,16 +120,17 @@
    recipients.  BODY is evaluated with STREAM-VAR being the stream
    connected to the remote SMTP server.  BODY is expected to write the
    RFC2821 message (headers and body) to STREAM-VAR."
-  `(do-with-smtp-mail ,host ,port ,from ,to
+  `(do-with-smtp-mail ,host ,from ,to
                       (lambda (,stream-var) ,@body)
+                      :port ,port
                       :authentication ,authentication 
                       :ssl ,ssl
                       :local-hostname ,local-hostname))
 
 (defun send-email (host from to subject message 
-		   &key (port 25) cc bcc reply-to extra-headers
+		   &key ssl (port (if (eq :tls ssl) 465 25)) cc bcc reply-to extra-headers
 		   html-message display-name authentication
-		   attachments (buffer-size 256) ssl)
+		   attachments (buffer-size 256))
   (send-smtp host from (check-arg to "to") subject (mask-dot message)
 	     :port port :cc (check-arg cc "cc") :bcc (check-arg bcc "bcc")
 	     :reply-to reply-to 
@@ -143,11 +144,13 @@
 			      256)
 	     :ssl ssl))
 
-(defun send-smtp (host from to subject message 
-		  &key (port 25) cc bcc reply-to extra-headers html-message 
-		  display-name authentication attachments buffer-size ssl
+(defun send-smtp (host from to subject message
+                  &key ssl (port (if (eq :tls ssl) 465 25)) cc bcc
+		  reply-to extra-headers html-message display-name
+		  authentication attachments buffer-size
                   (local-hostname (usocket::get-host-name)))
-  (with-smtp-mail (stream host port from (append to cc bcc)
+  (with-smtp-mail (stream host from (append to cc bcc)
+                          :port port
                           :authentication authentication 
                           :ssl ssl
                           :local-hostname local-hostname)
@@ -305,6 +308,8 @@
         (:tls
          ;; Plain SSL connection
          (convert-connection-to-ssl)
+         (do-ehlo))
+        ((nil)
          (do-ehlo))))
     (when authentication
       (smtp-authenticate stream authentication features)))
