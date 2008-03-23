@@ -45,9 +45,9 @@ To use cl-smtp:
   - buffer-size (Number default 256): controls how much of a attachment file
                                       is read on each loop before encoding 
                                       and transmitting the contents, 
-                                      the number is interpretted in KB 
-  - ssl (Boolean)                   : if true than use the STARTTLS functionality
-                                      to make a ssl connection
+                                      the number is interpreted in KB 
+  - ssl (or t :starttls :tls)       : if t or :STARTTLS: use the STARTTLS functionality
+                                      if :TLS: use TLS directly
 
 Returns nil or error with message
 
