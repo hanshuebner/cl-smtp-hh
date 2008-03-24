@@ -7,10 +7,12 @@
 ;; This stream type is used to do two things:
 
 ;; In the message header, convert all non-ASCII characters to their
-;; equivalent Q-encoded representation.
+;; equivalent Q-encoded representation (RFC2047)
 
 ;; In the whole message, convert all line endings to CR+LF as required
 ;; by the SMTP protocol.
+
+;; This stream class should also perform automatic dot masking, tbd.
 
 (in-package :cl-smtp)
 
