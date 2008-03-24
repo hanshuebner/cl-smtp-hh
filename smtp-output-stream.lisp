@@ -17,9 +17,9 @@
 (in-package :cl-smtp)
 
 (defclass smtp-output-stream (trivial-gray-stream-mixin fundamental-character-output-stream)
-  ((stream
-    :initarg :stream
-    :reader stream)
+  ((encapsulated-stream
+    :initarg :encapsulated-stream
+    :reader encapsulated-stream)
    (in-header
     :initform t
     :accessor in-header
@@ -44,20 +44,21 @@
   (stream-element-type (stream stream)))
 
 (defmethod close ((stream smtp-output-stream) &key abort)
-  (close (stream stream) :abort abort))
+  (close (encapsulated-stream stream) :abort abort))
 
 (defmethod stream-write-char ((stream smtp-output-stream) char)
   (with-accessors ((in-header in-header)
                    (line-has-non-ascii line-has-non-ascii)
                    (previous-char previous-char)
-                   (external-format external-format)) stream
+                   (external-format external-format)
+                   (encapsulated-stream encapsulated-stream)) stream
     (when in-header
       (cond
         ;; Newline processing
         ((eql char #\Newline)
          ;; Finish quoting
          (when line-has-non-ascii
-           (format (stream stream) "?=")
+           (format encapsulated-stream "?=")
            (setf line-has-non-ascii nil))
          ;; Test for end of header
          (when (eql previous-char #\Newline)
@@ -68,19 +69,19 @@
         ;; Handle non-ASCII characters
         ((< 127 (char-code char))
          (unless line-has-non-ascii
-           (format (stream stream) "=?~A?Q?" (flex:external-format-name external-format))
+           (format encapsulated-stream "=?~A?Q?" (flex:external-format-name external-format))
            (setf line-has-non-ascii t))
          (loop for byte across (flex:string-to-octets (make-string 1 :initial-element char)
                                                       :external-format external-format)
-            do (format (stream stream) "=~2,'0X" byte))))
+            do (format encapsulated-stream "=~2,'0X" byte))))
       (setf previous-char char))
       (when (eql char #\Newline)
-        (write-char #\Return (stream stream)))
+        (write-char #\Return encapsulated-stream))
       (unless (< 127 (char-code char))
-        (write-char char (stream stream)))))
+        (write-char char encapsulated-stream))))
 
 (defmethod stream-write-sequence ((stream smtp-output-stream) sequence start end &key)
   (if (in-header stream)
       (loop for i from start below end
            do (stream-write-char stream (elt sequence i)))
-      (write-sequence sequence (stream stream) :start start :end end)))
+      (write-sequence sequence (encapsulated-stream stream) :start start :end end)))
