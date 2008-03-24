@@ -109,7 +109,7 @@
                                   :ssl ssl
                                   :local-hostname local-hostname)))
       (initiate-smtp-mail stream from to)
-      (funcall thunk stream)
+      (funcall thunk  (make-instance 'smtp-output-stream :stream stream))
       (finish-smtp-mail stream))))
 
 (defmacro with-smtp-mail ((stream-var host from to &key ssl (port (if (eq :tls ssl) 465 25)) authentication local-hostname)

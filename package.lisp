@@ -13,19 +13,27 @@
 ;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ;;; Lisp Lesser GNU General Public License for more details.
 
-;;; File: cl-smtp.asd
-;;; Description: cl-smtp ASDF system definition file
+;;; File: package.lisp
+;;; Description: cl-smtp package definition file
 
-(asdf:defsystem :cl-smtp
-  :version "20071113.1"
-  :perform (load-op :after (op webpage)
-                    (pushnew :cl-smtp cl:*features*))
-  :depends-on (:usocket #-allegro :cl-base64 
-                        #-allegro :flexi-streams
-                        #-allegro :cl+ssl)
-  :serial t
-  :components ((:file "package")
-               (:file "attachments")
-               (:file "cl-smtp")
-               (:file "smtp-output-stream")
-               (:file "mime-types")))
+(in-package :cl-user)
+
+(defpackage :cl-smtp
+  (:use :cl :asdf :flexi-streams :trivial-gray-streams)
+  (:export "SEND-EMAIL"
+           "WITH-SMTP-MAIL"
+
+           "SMTP-ERROR"
+           "SMTP-PROTOCOL-ERROR"
+           "NO-SUPPORTED-AUTHENTICATION-METHOD"
+           "RCPT-FAILED"
+           "IGNORE-RECIPIENT"))
+
+(in-package :cl-smtp)
+
+(defparameter *debug* nil)
+
+(defmacro print-debug (str)
+  `(when *debug*
+      (print ,str)))
+
