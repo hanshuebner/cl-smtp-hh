@@ -1,5 +1,5 @@
 ;;; -*- mode: Lisp -*-
-	
+       
 ;;; This file is part of CL-SMTP, the Lisp SMTP Client
 
 ;;; Copyright (C) 2004/2005/2006/2007 Jan Idzikowski
@@ -22,7 +22,6 @@
   (:use :cl :asdf :flexi-streams :trivial-gray-streams)
   (:export "SEND-EMAIL"
            "WITH-SMTP-MAIL"
-
            "SMTP-ERROR"
            "SMTP-PROTOCOL-ERROR"
            "NO-SUPPORTED-AUTHENTICATION-METHOD"

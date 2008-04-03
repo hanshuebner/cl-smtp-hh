@@ -75,7 +75,7 @@
                                                       :external-format external-format)
             do (format encapsulated-stream "=~2,'0X" byte))))
       (setf previous-char char))
-      (when (eql char #\Newline)
+      #+nil(when (eql char #\Newline)
         (write-char #\Return encapsulated-stream))
       (unless (< 127 (char-code char))
         (write-char char encapsulated-stream))))

@@ -87,7 +87,8 @@
                        (response-message condition))))))
 
 (defun smtp-command (stream command expected-response-code
-                     &key (condition-class 'smtp-error) condition-arguments)
+                     &key (condition-class 'smtp-protocol-error) 
+                     condition-arguments)
   (when command
     (write-to-smtp stream command))
   (multiple-value-bind (code msgstr lines)
@@ -236,25 +237,29 @@
    the NO-SUPPORTED-AUTHENTICATION-METHOD error is signalled."
   (when (keywordp (car authentication))
     (pop authentication))
-  (destructuring-bind (username password) authentication
-    (cond
-      ((member "AUTH PLAIN" features :test #'equal)
-       (smtp-command stream (format nil "AUTH PLAIN ~A" 
-                                    (string-to-base64-string
-                                     (format nil "~A~C~A~C~A" 
-                                             username
-                                             #\null username
-                                             #\null password)))
-                     235))
-      ((member "AUTH LOGIN" features :test #'equal)
-       (smtp-command stream "AUTH LOGIN"
-                     334)
-       (smtp-command stream (string-to-base64-string username)
-                     334)
-       (smtp-command stream (string-to-base64-string password)
-                     235))
-      (t
-       (error 'no-supported-authentication-method :features features)))))
+  (let ((server-authentication (loop for i in features
+                                  for e = (search "AUTH " i :test #'equal)
+                                  when (and e (= e 0))
+                                  return i)))
+    (destructuring-bind (username password) authentication
+      (cond
+        ((search " PLAIN" server-authentication :test #'equal)
+         (smtp-command stream (format nil "AUTH PLAIN ~A" 
+                                      (string-to-base64-string
+                                       (format nil "~A~C~A~C~A" 
+                                               username
+                                               #\null username
+                                               #\null password)))
+                       235))
+        ((search " LOGIN" server-authentication :test #'equal)
+         (smtp-command stream "AUTH LOGIN"
+                       334)
+         (smtp-command stream (string-to-base64-string username)
+                       334)
+         (smtp-command stream (string-to-base64-string password)
+                       235))
+        (t
+         (error 'no-supported-authentication-method :features features))))))
 
 (defun smtp-handshake (stream &key authentication ssl local-hostname)
   "Perform the initial SMTP handshake on STREAM.  Returns the stream

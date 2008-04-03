@@ -17,12 +17,14 @@
 ;;; Description: cl-smtp ASDF system definition file
 
 (asdf:defsystem :cl-smtp
-  :version "20071113.1"
+  :version "20080202.1"
   :perform (load-op :after (op webpage)
                     (pushnew :cl-smtp cl:*features*))
-  :depends-on (:usocket #-allegro :cl-base64 
-                        #-allegro :flexi-streams
-                        #-allegro :cl+ssl)
+  :depends-on (:usocket 
+               :trivial-gray-streams
+               :flexi-streams
+               #-allegro :cl-base64 
+               #-allegro :cl+ssl)
   :serial t
   :components ((:file "package")
                (:file "attachments")
