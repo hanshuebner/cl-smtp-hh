@@ -347,7 +347,12 @@
    connection is then terminated by sending a QUIT command."
   (fresh-line stream)
   (smtp-command stream "." 250)
-  (smtp-command stream "QUIT" 221))
+  (ignore-errors
+    ;; For now, we ignore errors that are signalled after the mail has
+    ;; successfully been sent.  Some servers close the connection
+    ;; after having received the QUIT command without properly saying
+    ;; good bye.
+    (smtp-command stream "QUIT" 221)))
 
 (defun send-mail-headers (stream 
 			  &key from to cc reply-to 
