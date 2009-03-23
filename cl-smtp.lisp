@@ -385,7 +385,8 @@
 	(html-boundary (generate-multipart-header 
 			stream html-boundary 
 			:multipart-type "alternative"))
-	(t nil)))
+	(t nil))
+  (write-blank-line stream))
 
 (defun write-to-smtp (stream command)
   (print-debug (format nil "to server: ~A" command)) 
