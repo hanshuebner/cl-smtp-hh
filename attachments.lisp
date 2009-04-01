@@ -76,7 +76,7 @@
    :boundary boundary
    :content-type (format nil "~a;~%~tname=\"~a\"" (lookup-mime-type name) name)
    :content-transfer-encoding "base64"
-   :content-disposition (format nil "attachment; filename=\"~a\"" name)))
+   :content-disposition (format nil "inline; filename=\"~a\"" name)))
 
 (defun send-end-marker (sock boundary)
   ;; Note the -- at beginning and end of boundary is required
@@ -91,12 +91,12 @@
 (defun base64-encode-file (file-in sock
                                    &key 
                                    (buffer-size 256) ;; in KB
-                                   (wrap-at-column 70))
+                                   (wrap-at-column 72))
   "Encodes the file contents given by file-in, which can be of any form appropriate to with-open-file, and write the base-64 encoded version to sock, which is a socket.
 
 Buffer-size, given in KB, controls how much of the file is processed and written to the socket at one time. A buffer-size of 0, processes the file all at once, regardless of its size. One will have to weigh the speed vs, memory consuption risks when chosing which way is best. 
 
-Wrap-at-column controls where the encode string is divided for line breaks." 
+Wrap-at-column controls where the encode string is divided for line breaks."
     (when (probe-file file-in)
       ;;-- open filein ---------
       (with-open-file (strm-in file-in
