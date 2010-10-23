@@ -110,7 +110,7 @@
                                   :ssl ssl
                                   :local-hostname local-hostname)))
       (initiate-smtp-mail stream from to)
-      (funcall thunk  (make-instance 'smtp-output-stream :encapsulated-stream stream))
+      (funcall thunk (make-instance 'smtp-header-output-stream :encapsulated-stream stream))
       (finish-smtp-mail stream))))
 
 (defmacro with-smtp-mail ((stream-var host from to &key ssl (port (if (eq :tls ssl) 465 25)) authentication local-hostname)
@@ -376,7 +376,7 @@
     (dolist (l extra-headers)
       (write-to-smtp stream 
 		     (format nil "~A: ~{~a~^,~}" (car l) (rest l)))))
-  (write-to-smtp stream "Mime-Version: 1.0"))
+  (write-to-smtp stream "MIME-Version: 1.0"))
 
 (defun send-multipart-headers (stream &key attachment-boundary html-boundary)
   (cond (attachment-boundary
