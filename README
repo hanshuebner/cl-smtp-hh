@@ -1,3 +1,15 @@
+This is a fork of the CL-SMTP library (http://common-lisp.net/project/cl-smtp/)
+It is maintained by Hans Hübner and has a few features that have not been merged
+into the upstream version, most prominently the WITH-SMTP-MAIL function.  Both
+versions have diverged significantly, with the upstream version being maintained
+more, with a focus on MIME mail generation.  This versin is more concerned with 
+the SMTP aspects and meant to be used with a MIME message generation library
+like cl-mime.
+
+For all questions or comments regarding this version, please contact
+hans.huebner@gmail.com.
+
+The original README follows:
 
 CL-SMTP is a simple lisp smtp client. 
 It works in ACL, SBCL, CMUCL, OPENMCL, LISPWORKS, CLISP and ECL.
