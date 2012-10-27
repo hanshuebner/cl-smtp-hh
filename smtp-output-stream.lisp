@@ -48,13 +48,14 @@
                    (previous-char previous-char)
                    (external-format external-format)
                    (encapsulated-stream encapsulated-stream)) stream
+    (when (member char '(#\Newline #\Space))
+      ;; Finish non-ASCII quoting
+      (when line-has-non-ascii
+        (format encapsulated-stream "?=")
+        (setf line-has-non-ascii nil)))
     (cond
       ;; Newline processing
       ((eql char #\Newline)
-       ;; Finish quoting
-       (when line-has-non-ascii
-         (format encapsulated-stream "?=")
-         (setf line-has-non-ascii nil))
        ;; Print CR
        (write-char #\Return encapsulated-stream)
        ;; Test for end of header
@@ -73,7 +74,6 @@
        (loop for byte across (flex:string-to-octets (make-string 1 :initial-element char)
                                                     :external-format external-format)
           do (format encapsulated-stream "=~2,'0X" byte))))
-      
       (unless (eql #\Return char)
         (setf previous-char char))
       (unless (< 127 (char-code char))
