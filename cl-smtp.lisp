@@ -363,9 +363,9 @@
   (write-to-smtp stream (format nil "Date: ~A" (get-email-date-string)))
   (write-to-smtp stream (format nil "From: ~@[~A <~]~A~@[>~]" 
 				display-name from display-name))
-  (write-to-smtp stream (format nil "To: ~{ ~a~^,~}" to))
+  (write-to-smtp stream (format nil "To:~{ ~a~^,~}" to))
   (when cc
-    (write-to-smtp stream (format nil "Cc: ~{ ~a~^,~}" cc)))
+    (write-to-smtp stream (format nil "Cc:~{ ~a~^,~}" cc)))
   (write-to-smtp stream (format nil "Subject: ~A" subject))
   (write-to-smtp stream (format nil "X-Mailer: cl-smtp ~A" 
 				*x-mailer*))
